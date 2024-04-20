@@ -1,5 +1,11 @@
-# osTicket-Custom-Code
+# osTicket-Inject-Css-Or-Js
 
+This plugin's code was started by the osTicket-Custom-Code plugin at
+https://github.com/HannibalZA/osTicket-Custom-Code
+Thank you HannibalZA!
+
+I felt the desire to improve it (to use Signals)
+---
 osTicket plugin that allows for inserting custom CSS and JS code to the client and staff interfaces.
 
 ![image](https://user-images.githubusercontent.com/2007626/211731476-9ea93a58-49bf-44d2-9790-a97befd08569.png)

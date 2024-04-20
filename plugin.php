@@ -1,13 +1,10 @@
 <?php
-
-return array(
-    'id' =>             'custom:code', # notrans
-    'version' =>        '0.2',
-    'name' =>           /* trans */ 'Custom FrontEnd CSS and JS',
-    'author' =>         'HannibalZA',
+return [
+    'id' =>             'custom:injectcssorjs', # notrans
+    'version' =>        '0.1',
+    'name' =>           /* trans */ 'Inject CSS or JS',
+    'author' =>         'TearsForNations',
     'description' =>    /* trans */ 'Allows for inclusion of custom CSS and JS code on the client and staff interfaces',
     'url' =>            '',
-    'plugin' =>         'customcode.php:CustomCodePlugin'
-);
-
-?>
+    'plugin' =>         'injectcssorjs.php:InjectCssOrJs'
+];

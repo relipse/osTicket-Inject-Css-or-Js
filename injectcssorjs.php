@@ -72,9 +72,81 @@ class InjectCssOrJs extends Plugin {
     }
     public function injectTfnInjectStaffCss() {
         $this->inject('custom-staff-code-css');
+        $cfg = $this->getConfig();
+        if ($cfg->get('use-syntax-highlighter')){
+            echo <<<EOT
+            <style>
+                .ace_editor, .ace_editor *{
+                    font-family: "Monaco", "Menlo", "Ubuntu Mono", "Droid Sans Mono", "Consolas", monospace !important;
+                    font-size: 12px !important;
+                    font-weight: 400 !important;
+                    letter-spacing: 0 !important;
+                }
+                .syntaxHighlightDiv {
+                      width: 600px;
+                      height: 270px;
+                      border: 1px solid lightgray;
+                }
+            </style>
+            EOT;
+        }
     }
     public function injectTfnInjectStaffJs() {
         $this->inject('custom-staff-code-js');
+        $cfg = $this->getConfig();
+        if ($cfg->get('use-syntax-highlighter')) {
+            echo <<<EOT
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.9.6/ace.js"></script>
+<script>
+if ($){
+    $(function(){
+        function determineModeFromClass(elem){
+            if (elem.hasClass('syntax-js') || elem.hasClass('syntax-javascript')){
+                return 'js';
+            }
+            if (elem.hasClass('syntax-css')){
+                return 'css';
+            }
+            return '';
+        }
+        $('textarea.syntaxHighlight').each(function(){
+            let self = $(this);
+            let mode = determineModeFromClass(self);
+            let theme = 'default';
+            console.log(mode, theme);
+            if (!theme){
+                theme = 'default';
+            }
+            switch(mode){
+                case 'js':
+                    mode = 'javascript';
+                    break;
+                case 'css':
+                    mode = 'css';
+                    break;
+                default:
+                    mode = null;
+            }
+            if (mode){
+                  let nwDiv = $('<div data-textarea-id="'+self.attr('id')+'" class="syntaxHighlightDiv syntaxhighlightDivMode-'+mode+'"></div>');
+                  self.after(nwDiv);
+                  let editor = ace.edit(nwDiv.get(0));
+                  editor.setTheme("ace/theme/monokai");
+                  editor.session.setMode("ace/mode/"+mode);
+                    
+                  editor.setValue(self.val());  // copy the textarea value to the editor
+                  editor.session.on('change', function(){ 
+                    self.val(editor.getValue());  // update the textarea value if the editor changes
+                  });
+                  self.hide();
+                  editor.clearSelection();
+            }
+        });
+    });
+}
+</script>
+EOT;
+        }
     }
 
     /**

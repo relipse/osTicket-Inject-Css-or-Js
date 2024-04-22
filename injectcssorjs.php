@@ -115,6 +115,13 @@ EOT;
 
     /**
      * Install the specified signal in the header.inc.php file.
+     * With this method of injecting css/js into the site, there is an issue:
+     * If deployment is simply a git pull, if any of the header.inc.php files are modified on the fly, then
+     * when we do a "git pull" it will likely fail if there are modifications to any of those header.inc.php files
+     * (during an upgrade?)
+     * I believe the solution is to reset the local change on the header.inc.php files before doing git pull.
+     * If everything works right, the Signals will be installed on the next page reload anyway.
+     * Another methodology is to have a commit to our repo which puts the signals there already so there are "no changes"
      *
      * @param string $where The location where the signal should be installed. Can be either 'client' or 'staff'.
      * @return bool True if the signal was successfully installed, False otherwise.

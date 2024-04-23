@@ -1,4 +1,5 @@
 # osTicket-Inject-Css-Or-Js
+The repository is located at: https://github.com/relipse/osTicket-Inject-Css-or-Js
 
 This plugin's code was started by the osTicket-Custom-Code plugin at
 https://github.com/HannibalZA/osTicket-Custom-Code

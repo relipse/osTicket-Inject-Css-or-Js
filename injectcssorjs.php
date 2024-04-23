@@ -6,10 +6,10 @@ require_once('config.php');
 
 class InjectCssOrJs extends Plugin {
     //Warning, if you change any of these constants, you also need to change the inject functions
-    const SIGNAL_CLIENT_CSS = 'TfnInjectClientCss';
-    const SIGNAL_CLIENT_JS = 'TfnInjectClientJs';
-    const SIGNAL_STAFF_CSS = 'TfnInjectStaffCss';
-    const SIGNAL_STAFF_JS = 'TfnInjectStaffJs';
+    const SIGNAL_CLIENT_CSS = 'inject.client.css';
+    const SIGNAL_CLIENT_JS = 'inject.client.js';
+    const SIGNAL_STAFF_CSS = 'inject.staff.css';
+    const SIGNAL_STAFF_JS = 'inject.staff.js';
     const ENDING_HEAD_TAG = '</head>';
 
     public $config_class = "InjectCssOrJsConfig";
@@ -70,10 +70,16 @@ class InjectCssOrJs extends Plugin {
     public function injectTfnInjectClientJs() {
         $this->inject('custom-code-js');
     }
+
+    protected function _useSyntaxHighlighter(): bool
+    {
+        $cfg = $this->getConfig();
+        return !empty($cfg->get('use-syntax-highlighter'));
+    }
+
     public function injectTfnInjectStaffCss() {
         $this->inject('custom-staff-code-css');
-        $cfg = $this->getConfig();
-        if ($cfg->get('use-syntax-highlighter')){
+        if ($this->_useSyntaxHighlighter()){
             echo <<<EOT
             <style>
                 .ace_editor, .ace_editor *{
@@ -93,8 +99,7 @@ class InjectCssOrJs extends Plugin {
     }
     public function injectTfnInjectStaffJs() {
         $this->inject('custom-staff-code-js');
-        $cfg = $this->getConfig();
-        if ($cfg->get('use-syntax-highlighter')) {
+        if ($this->_useSyntaxHighlighter()) {
             echo <<<EOT
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.9.6/ace.js"></script>
 <script>
@@ -113,7 +118,6 @@ if ($){
             let self = $(this);
             let mode = determineModeFromClass(self);
             let theme = 'default';
-            console.log(mode, theme);
             if (!theme){
                 theme = 'default';
             }
@@ -128,18 +132,22 @@ if ($){
                     mode = null;
             }
             if (mode){
-                  let nwDiv = $('<div data-textarea-id="'+self.attr('id')+'" class="syntaxHighlightDiv syntaxhighlightDivMode-'+mode+'"></div>');
-                  self.after(nwDiv);
-                  let editor = ace.edit(nwDiv.get(0));
-                  editor.setTheme("ace/theme/monokai");
-                  editor.session.setMode("ace/mode/"+mode);
-                    
-                  editor.setValue(self.val());  // copy the textarea value to the editor
-                  editor.session.on('change', function(){ 
-                    self.val(editor.getValue());  // update the textarea value if the editor changes
-                  });
-                  self.hide();
-                  editor.clearSelection();
+                let txtId = self.attr('id');
+                  let newDivExists = ($('div[data-textarea-id="'+txtId+'"]').length >= 1);
+                  if (!newDivExists){
+                      let nwDiv = $('<div data-textarea-id="'+txtId+'" class="syntaxHighlightDiv syntaxhighlightDivMode-'+mode+'"></div>');
+                      self.after(nwDiv);
+                      let editor = ace.edit(nwDiv.get(0));
+                      editor.setTheme("ace/theme/monokai");
+                      editor.session.setMode("ace/mode/"+mode);
+                        
+                      editor.setValue(self.val());  // copy the textarea value to the editor
+                      editor.session.on('change', function(){ 
+                        self.val(editor.getValue());  // update the textarea value if the editor changes
+                      });
+                      self.hide();
+                      editor.clearSelection();
+                  }
             }
         });
     });
@@ -149,39 +157,50 @@ EOT;
         }
     }
 
-    /**
-     * Generate the signal code for the given CSS and JS signals.
-     *
-     * This method generates the signal code that needs to be added to the header.inc.php file.
-     * It includes PHP code to send the CSS and JS signals.
-     * The CSS and JS signals are passed as arguments to this method and are inserted into the generated code.
-     *
-     * @param string $cssSignal The CSS signal to be sent.
-     * @param string $jsSignal The JS signal to be sent.
-     * @return string The generated signal code.
-     */
-    protected function _generateSignalCode(string $cssSignal, string $jsSignal): string{
-        return <<<EOT
-<?php Signal::send('$cssSignal', null); ?>
-<?php Signal::send('$jsSignal', null); ?>
-</head>
-EOT;
+    protected function _generateSignalPhp(string $signal): string{
+        return "<?php /* DO NOT MODIFY ANYTHING ON THIS LINE */ Signal::send('$signal', null); ?>";
+    }
+
+
+    protected function _getSignalsNotInFile(string $fileContents, array $signals): array{
+        $signalsNotInFile = [];
+        foreach($signals as $signal){
+            if (is_string($signal) && !str_contains($fileContents, $signal)){
+                $signalsNotInFile[] = $signal;
+            }
+        }
+        return $signalsNotInFile;
     }
 
     /**
-     * Checks if a custom signal is present in the head of a file. If not, it installs the custom signal.
+     * Checks if the given signals are present in the specified file's contents.
+     * If any of the signals are missing, installs them by replacing the existing signals with the given ones.
      *
-     * @param string $filepath The path of the file to check or install the custom signal.
-     * @param string $lookForReplace The custom signal to look for or install.
-     * @return bool Returns true if signal was added to file in $filepath, false otherwise.
+     * @param string $filepath The path to the file to check and manipulate.
+     * @param array $signals An array of signals to be checked and installed.
+     * @return bool Returns true if all signals are already present in the file or successfully installed, false otherwise.
      */
-    protected function _checkOrInstallCustomSignalInHead(string $filepath, string $lookForReplace): bool{
-        $contents = file_get_contents($filepath);
-        if (!str_contains($contents, $lookForReplace)){
-            $contents = str_replace(self::ENDING_HEAD_TAG, $lookForReplace, $contents);
-            return file_put_contents($filepath, $contents) !== false;
+    protected function _checkOrInstallCustomSignalsInHead(string $filepath, array $signals): bool{
+        if (empty($signals)){
+            return false;
         }
-        return false; //nothing added
+        $contents = file_get_contents($filepath);
+        if (empty($contents)){
+            return false;
+        }
+        $signalsNotInFile = $this->_getSignalsNotInFile($contents, $signals);
+
+        if (count($signalsNotInFile) > 0) {
+            //if any of the signals are not in the file, we need to install them
+            //First, let's go ahead and remove all signals.
+            $contents = str_replace($signals, '', $contents);
+            $strSignals = implode("\n", $signals);
+            $contents = str_replace(self::ENDING_HEAD_TAG, $strSignals . "\n" . self::ENDING_HEAD_TAG, $contents);
+            return !empty(file_put_contents($filepath, $contents));
+        }else{
+            //all signals are already in file
+            return true;
+        }
     }
 
 
@@ -204,17 +223,24 @@ EOT;
             case 'client':
                 $signalCss = self::SIGNAL_CLIENT_CSS;
                 $signalJs = self::SIGNAL_CLIENT_JS;
+                $funcCss = 'injectTfnInjectClientCss';
+                $funcJs = 'injectTfnInjectClientJs';
                 break;
             case 'staff':
                 $signalCss = self::SIGNAL_STAFF_CSS;
                 $signalJs = self::SIGNAL_STAFF_JS;
+                $funcCss = 'injectTfnInjectStaffCss';
+                $funcJs = 'injectTfnInjectStaffJs';
                 break;
             default:
                 return false;
         }
-        Signal::connect($signalCss, array($this, 'inject'.$signalCss));
-        Signal::connect($signalJs, array($this, 'inject'.$signalJs));
-        return $this->_checkOrInstallCustomSignalInHead($filepath, $this->_generateSignalCode($signalCss, $signalJs));
+        $signalCssPhp = $this->_generateSignalPhp($signalCss);
+        $signalJsPhp = $this->_generateSignalPhp($signalJs);
+        $installedAlready = $this->_checkOrInstallCustomSignalsInHead($filepath, [$signalCssPhp, $signalJsPhp]);
+        Signal::connect($signalCss, array($this, $funcCss));
+        Signal::connect($signalJs, array($this, $funcJs));
+        return $installedAlready;
     }
 
     /**

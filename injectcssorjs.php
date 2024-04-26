@@ -10,6 +10,8 @@ class InjectCssOrJs extends Plugin {
     const SIGNAL_CLIENT_JS = 'inject.client.js';
     const SIGNAL_STAFF_CSS = 'inject.staff.css';
     const SIGNAL_STAFF_JS = 'inject.staff.js';
+    //const SIGNAL_STAFF_LOGIN_CSS = 'inject.staff.login.css';
+    //const SIGNAL_STAFF_LOGIN_JS = 'inject.staff.login.js';
     const ENDING_HEAD_TAG = '</head>';
 
     public $config_class = "InjectCssOrJsConfig";
@@ -30,9 +32,9 @@ class InjectCssOrJs extends Plugin {
             return "";
         }
         $tag = null;
-        if (str_contains($key, 'css')){
+        if (preg_match('/-css$/', $key)){
             $tag = 'style';
-        }else if (str_contains($key, 'js')){
+        }else if (preg_match('/-js$/', $key)){
             $tag = 'script';
         }
         if (empty($tag)){
@@ -48,27 +50,40 @@ class InjectCssOrJs extends Plugin {
      * @param string $configKey The key to identify the custom code to inject.
      * @return void
      */
-    public function inject(string $configKey){
+    public function inject(string $configKey): bool{
         $config = $this->getConfig();
         $val = $config->get($configKey);
+        if (empty($val)){
+            //nothing to inject
+            return false;
+        }
         $hideComments = $config->get('hide-begin-end-comments');
         $s = $this->_wrapValueBasedOnKey($configKey, $val);
         if (!empty($s)){
             if (empty($hideComments)) {
-                echo '<!-- TCustomCode: ' . $configKey . ' Start -->' . "\n";
+                echo '<!-- InjectCssJsPlg: ' . $configKey . ' Start -->' . "\n";
             }
             echo $s;
             if (empty($hideComments)) {
-                echo '<!-- TCustomCode: ' . $configKey . ' End -->' . "\n";
+                echo '<!-- InjectCssJsPlg: ' . $configKey . ' End -->' . "\n";
             }
+            return true;
         }
     }
 
-    public function injectTfnInjectClientCss() {
-        $this->inject('custom-code-css');
+    public function injectInjectCssOrJsClientCss() {
+        $this->inject('injectcssorjs-code-css');
     }
-    public function injectTfnInjectClientJs() {
-        $this->inject('custom-code-js');
+    public function injectInjectCssOrJsClientJs() {
+        $this->inject('injectcssorjs-code-js');
+    }
+
+    protected function _syntaxHighlighterEnabledOnPage(): bool{
+        return $this->_onPluginPage() && $this->_useSyntaxHighlighter();
+    }
+
+    protected function _onPluginPage(): bool{
+        return isset($_GET['id']) && basename($_SERVER['PHP_SELF']) === 'plugins.php';
     }
 
     protected function _useSyntaxHighlighter(): bool
@@ -77,9 +92,9 @@ class InjectCssOrJs extends Plugin {
         return !empty($cfg->get('use-syntax-highlighter'));
     }
 
-    public function injectTfnInjectStaffCss() {
-        $this->inject('custom-staff-code-css');
-        if ($this->_useSyntaxHighlighter()){
+    public function injectInjectCssOrJsStaffCss() {
+        $this->inject('injectcssorjs-staff-css');
+        if ($this->_syntaxHighlighterEnabledOnPage()){
             echo <<<EOT
             <style>
                 .ace_editor, .ace_editor *{
@@ -97,9 +112,18 @@ class InjectCssOrJs extends Plugin {
             EOT;
         }
     }
-    public function injectTfnInjectStaffJs() {
-        $this->inject('custom-staff-code-js');
-        if ($this->_useSyntaxHighlighter()) {
+
+    public function injectInjectCssOrJsStaffLoginJs(){
+        $this->inject('injectcssorjs-staff-login-js');
+    }
+
+    public function injectInjectCssOrJsStaffLoginCss(){
+        $this->inject('injectcssorjs-staff-login-css');
+    }
+
+    public function injectInjectCssOrJsStaffJs() {
+        $this->inject('injectcssorjs-staff-js');
+        if ($this->_syntaxHighlighterEnabledOnPage()) {
             echo <<<EOT
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.9.6/ace.js"></script>
 <script>
@@ -218,20 +242,34 @@ EOT;
      * @return bool True if the signal was successfully installed, False otherwise.
      */
     protected function _ensureSignalInstalledInHead(string $where): bool{
+        //if ($where === 'staff-login'){
+        //    $filepath = INCLUDE_DIR.'staff/login.header.php';
+        //}else {
         $filepath = INCLUDE_DIR . $where . '/header.inc.php';
+        //}
         switch($where){
             case 'client':
                 $signalCss = self::SIGNAL_CLIENT_CSS;
                 $signalJs = self::SIGNAL_CLIENT_JS;
-                $funcCss = 'injectTfnInjectClientCss';
-                $funcJs = 'injectTfnInjectClientJs';
+                $funcCss = 'injectInjectCssOrJsClientCss';
+                $funcJs = 'injectInjectCssOrJsClientJs';
                 break;
             case 'staff':
                 $signalCss = self::SIGNAL_STAFF_CSS;
                 $signalJs = self::SIGNAL_STAFF_JS;
-                $funcCss = 'injectTfnInjectStaffCss';
-                $funcJs = 'injectTfnInjectStaffJs';
+                $funcCss = 'injectInjectCssOrJsStaffCss';
+                $funcJs = 'injectInjectCssOrJsStaffJs';
                 break;
+            //Staff login page injection is more difficult and
+            //not worth it at this time. The staff/login.header.php page
+            //does not allow Signal injection properly.
+            /*
+            case 'staff-login':
+                $signalCss = self::SIGNAL_STAFF_LOGIN_CSS;
+                $signalJs = self::SIGNAL_STAFF_LOGIN_JS;
+                $funcCss = 'injectInjectCssOrJsStaffLoginCss';
+                $funcJs = 'injectInjectCssOrJsStaffLoginJs';
+            */
             default:
                 return false;
         }
@@ -256,5 +294,6 @@ EOT;
         //be writeable, if the actual header already contains the signal, then it will not be added.
         $this->_ensureSignalInstalledInHead('client');
         $this->_ensureSignalInstalledInHead('staff');
+        //$this->_ensureSignalInstalledInHead('staff-login');
     }
 }
